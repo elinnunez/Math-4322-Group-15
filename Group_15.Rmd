@@ -1,0 +1,174 @@
+---
+title: "Group_15"
+author: "Elinnoel Nuñez"
+date: "2023-04-09"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, echo = TRUE) 
+```
+\newpage
+## Introduction
+The task at hand is to predict whether an individual's annual income is over $50,000 USD (income) based solely on data obtained from the U.S. Census in 1994. The census data contains various attributes such as occupation type (occupation), education level (education), race, sex, marital status (marital_status), and country of origin (country), which are either categorical or continuous values. Our objective is to use this information to determine if an individual falls into the high-income category.
+
+##### Categorical Variables:
+workclass,
+education,
+marital_status,
+occupation,
+relationship,
+race,
+sex,
+country (can also be treated as continuous)
+
+#### Continuous Variables:
+age,
+education_num,
+capital_gain,
+capital_loss,
+hours_per_week,
+fnlwgt (can also be treated as categorical)
+
+#### Response Variable:
+income: >50k, <=50k
+
+## Question
+Our task is to predict if an individual's income will be over $50K/yr (qualitative) using the given attributes.
+
+## Clean Data
+Before we begin using our models, we need to clean the data by removing missing values and setting categorical variables.
+
+#### Reading Data
+Read the data first.
+```{r}
+set.seed(1)
+base_adult <- read.csv("adult.csv", stringsAsFactors = TRUE)
+adult <- read.csv("adult.csv")
+summary(base_adult)
+```
+
+#### Remove rows with missing values
+In the given dataset, missing values are denoted by the "?" character. As the missing data only appears in our categorical variables, it is not appropriate to substitute them with a median or mean. Therefore, we have decided to eliminate those observations from our analysis. This has resulted in a reduced dataset with 45,222 observations. There are also several categorical variables that require conversion to numeric format for use in our analysis. Additionally, we will need to create a binary variables for the response variable to facilitate the modeling process.
+```{r}
+unknown_val_cols <- c("occupation", "workclass", "country")
+base_adult <- base_adult[rowSums(base_adult[, unknown_val_cols] == " ?") == 0, ]
+base_adult$income <- as.integer(base_adult$income != "<=50K") # 0 for <50k, 1 for >= 50k
+base_adult$income <- as.factor(base_adult$income)
+base_adult$country <- as.integer(base_adult$country != " United-States") # 0 for US, 1 everything else
+base_adult$country <- as.factor(base_adult$country)
+base_adult <- na.omit(base_adult)
+summary(base_adult)
+```
+
+## Split Data Set
+To evaluate the accuracy of our prediction model, we will divide the dataset into two sets: a training set and a testing set. The dataset will be split into an 80% training set and a 20% testing set. 
+```{r}
+# generates a vector of random values between 0 and 1 of length equal to the number of rows in data.
+train_rows <- runif(nrow(base_adult)) < 0.8 
+train <- base_adult[train_rows, ]
+test <- base_adult[!train_rows, ]
+print(nrow(train))
+print(nrow(test))
+```
+
+## Correlations
+```{r}
+#check correlations between the numeric values
+is_numeric <- sapply(adult, is.numeric)
+pairs(adult[, is_numeric])
+cor(adult[, is_numeric])
+```
+Upon examining the scatterplots generated from the dataset, there appears to be little evidence of strong correlation between the variables. There is no clear pattern or trend that can be observed in the scatterplots that would suggest a significant relationship between any of the variables.
+
+This observation suggests that the variables in the dataset are largely independent of one another, and that no single variable strongly influences the values of any other variable. However, it is still necessary to perform a thorough analysis to ensure that any potential correlation between variables is addressed.
+
+It is important to check for correlations between variables in a dataset because highly correlated variables can cause issues in the modeling process. For example, high correlation between predictor variables can result in instability of coefficients and decreased interpretability of the model. Therefore, it may be necessary to explore and address any potential correlation issues between variables, especially after the creation of new variables.
+
+## Logistic Regression Model
+We have decided to use logistic regression for our analysis because the response variable is categorical, with a value of 1 for salaries >=50K. Logistic regression offers several advantages, including ease of implementation and interpretation, no assumptions about class distribution in the predictors, identification of the most important predictors, and reduced risk of overfitting.
+
+However, logistic regression has some limitations, such as the inability to handle non-linear relationships between variables, and the need for low or no multicollinearity between independent variables. In high-dimensional datasets, overfitting can also be a concern, leading to less accurate results.
+
+Logistic Regression Model Formula: $$\frac{e^{b_0 + b_1 x}}{1+e^{b_0 + b_1 x}}$$
+
+```{r}
+# Fit a logistic regression model
+lr.glm <- glm(income ~ ., data = train, family = "binomial")
+
+# Make predictions on the test set
+lr.pred <- predict.glm(lr.glm, test, type = "response")
+pred_income <- ifelse(lr.pred > 0.5, TRUE, FALSE)
+
+# Create a confusion matrix to evaluate the performance of the model and compute accuracy metrics
+confusion_matrix <- table(test$income, pred_income)
+confusion_matrix
+
+# Calculate misclassification rate
+misclassification_rate <- (confusion_matrix[2,1] + confusion_matrix[1,2]) / sum(confusion_matrix)
+misclassification_rate
+```
+```{r, results='hide'}
+summary(lr.glm)
+```
+The misclassification rate is a measure of the model's overall accuracy and a lower rate is generally indicative of better performance. The misclassification rate of our model is 35%, which is higher than our desired level of accuracy. This indicates that our model correctly predicted only about 65% of the data in the test set, and therefore, may not be performing optimally. 
+
+### Extract Significant Variables
+```{r}
+# Extract p-values of coefficients
+p_values <- summary(lr.glm)$coef[, 4]
+
+# Identify significant variables based on p-values
+sig_vars <- names(p_values[p_values < 0.05]) # pick based off this
+sig_vars
+```
+To improve the performance of our model and decrease the misclassification rate, by running summary(lr.glm) we should identify variables that have little impact on predicting the response variable and consider removing them from the model. This process of feature selection can help to simplify the model and improve its overall performance.
+
+```{r}
+# Subset train and test data using significant variables
+sig <- c("age","workclass", "education","occupation","relationship","sex","capital_gain","capital_loss","hours_per_week","income")
+train_sig <- train[, sig]
+test_sig <- test[, sig]
+
+# Refit logistic regression model using significant variables
+lr_sig <- glm(income ~ ., train_sig, family = "binomial")
+
+# Make predictions on test data
+glm.pred <- predict(lr_sig, test_sig, type = "response")
+y_hat <- ifelse(glm.pred > 0.5, 1, 0)
+
+# Create a confusion matrix to evaluate the performance of the model and compute accuracy metrics
+conf_matrix <- table(test_sig$income, y_hat)
+conf_matrix
+
+# Calculate misclassification rate
+misclass_rate <- mean(y_hat != test_sig$income)
+misclass_rate
+```
+After removing non-significant variables from the model, the misclassification rate was found to be 0.3473918, which is almost identical to the rate obtained from the original model. This suggests that the removed variables had little impact on predicting the response variable. The remaining variables are likely the most important in determining income levels, and should be further analyzed to understand their individual contributions to the model.
+
+
+
+
+
+For the Logistic Regression model, we will use `income` as our response variable, and all other variables (excluding `fnlwgt`, `capital_gain`, `capital_loss`) that is `age`, `workclass`, `education`, `education_num`, `marital_status`, `occupation`, `relationship`, `race`, `sex`, `hours_per_week`, `country` as our predictors. The formula we will use for the Logistic Regression is displayed below:
+
+
+
+
+$$
+p = \frac{exp^{\beta_0 + \beta_1 *age + \beta_2 *workclass + \beta_3 *education + \beta_4 *education\_num + \beta_5 *marital\_status + \beta_6 *occupation + \beta_7 *relationship + \beta_8 *race + \beta_9 *sex + \beta_10 *hours\_per\_week + \beta_11 *country}} {1 + exp^{\beta_0 + \beta_1 *age + \beta_2 *workclass + \beta_3 *education + \beta_4 *education\_num + \beta_5 *marital\_status + \beta_6 *occupation + \beta_7 *relationship + \beta_8 *race + \beta_9 *sex + \beta_10 *hours\_per\_week + \beta_11 *country}}
+$$
+
+```{r, include=FALSE}
+base_adult<- read.csv("/Users/enunez/School/MATH4322/final_project/adult.csv", na.strings="N/A", stringsAsFactors = TRUE)
+base_adult$income<-as.factor(base_adult$income)
+base_adult = na.omit(base_adult); base_adult = base_adult[-1]
+```
+
+Before we create the model, notice how there is an imbalance within our response variable:
+```{r}
+summary(base_adult$income)
+```
