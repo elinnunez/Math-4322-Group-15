@@ -151,24 +151,3 @@ After removing non-significant variables from the model, the misclassification r
 
 
 
-
-
-For the Logistic Regression model, we will use `income` as our response variable, and all other variables (excluding `fnlwgt`, `capital_gain`, `capital_loss`) that is `age`, `workclass`, `education`, `education_num`, `marital_status`, `occupation`, `relationship`, `race`, `sex`, `hours_per_week`, `country` as our predictors. The formula we will use for the Logistic Regression is displayed below:
-
-
-
-
-$$
-p = \frac{exp^{\beta_0 + \beta_1 *age + \beta_2 *workclass + \beta_3 *education + \beta_4 *education\_num + \beta_5 *marital\_status + \beta_6 *occupation + \beta_7 *relationship + \beta_8 *race + \beta_9 *sex + \beta_10 *hours\_per\_week + \beta_11 *country}} {1 + exp^{\beta_0 + \beta_1 *age + \beta_2 *workclass + \beta_3 *education + \beta_4 *education\_num + \beta_5 *marital\_status + \beta_6 *occupation + \beta_7 *relationship + \beta_8 *race + \beta_9 *sex + \beta_10 *hours\_per\_week + \beta_11 *country}}
-$$
-
-```{r, include=FALSE}
-base_adult<- read.csv("/Users/enunez/School/MATH4322/final_project/adult.csv", na.strings="N/A", stringsAsFactors = TRUE)
-base_adult$income<-as.factor(base_adult$income)
-base_adult = na.omit(base_adult); base_adult = base_adult[-1]
-```
-
-Before we create the model, notice how there is an imbalance within our response variable:
-```{r}
-summary(base_adult$income)
-```
