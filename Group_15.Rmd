@@ -10,7 +10,7 @@ output:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(warning = FALSE, message = FALSE, echo = TRUE) 
 ```
-\newpage
+
 ## Introduction
 The task at hand is to predict whether an individual's annual income is over $50,000 USD (income) based solely on data obtained from the U.S. Census in 1994. The census data contains various attributes such as occupation type (occupation), education level (education), race, sex, marital status (marital_status), and country of origin (country), which are either categorical or continuous values. Our objective is to use this information to determine if an individual falls into the high-income category.
 
@@ -43,7 +43,7 @@ Before we begin using our models, we need to clean the data by removing missing 
 
 #### Reading Data
 Read the data first.
-```{r}
+```{r, results='hide'}
 set.seed(1)
 base_adult <- read.csv("adult.csv", stringsAsFactors = TRUE)
 adult <- read.csv("adult.csv")
@@ -97,15 +97,12 @@ Logistic Regression Model Formula: $$\frac{e^{b_0 + b_1 x}}{1+e^{b_0 + b_1 x}}$$
 ```{r}
 # Fit a logistic regression model
 lr.glm <- glm(income ~ ., data = train, family = "binomial")
-
 # Make predictions on the test set
 lr.pred <- predict.glm(lr.glm, test, type = "response")
 pred_income <- ifelse(lr.pred > 0.5, TRUE, FALSE)
-
 # Create a confusion matrix to evaluate the performance of the model and compute accuracy metrics
 confusion_matrix <- table(test$income, pred_income)
 confusion_matrix
-
 # Calculate misclassification rate
 misclassification_rate <- (confusion_matrix[2,1] + confusion_matrix[1,2]) / sum(confusion_matrix)
 misclassification_rate
@@ -119,7 +116,6 @@ The misclassification rate is a measure of the model's overall accuracy and a lo
 ```{r}
 # Extract p-values of coefficients
 p_values <- summary(lr.glm)$coef[, 4]
-
 # Identify significant variables based on p-values
 sig_vars <- names(p_values[p_values < 0.05]) # pick based off this
 sig_vars
@@ -131,23 +127,113 @@ To improve the performance of our model and decrease the misclassification rate,
 sig <- c("age","workclass", "education","occupation","relationship","sex","capital_gain","capital_loss","hours_per_week","income")
 train_sig <- train[, sig]
 test_sig <- test[, sig]
-
 # Refit logistic regression model using significant variables
 lr_sig <- glm(income ~ ., train_sig, family = "binomial")
-
 # Make predictions on test data
 glm.pred <- predict(lr_sig, test_sig, type = "response")
 y_hat <- ifelse(glm.pred > 0.5, 1, 0)
-
 # Create a confusion matrix to evaluate the performance of the model and compute accuracy metrics
 conf_matrix <- table(test_sig$income, y_hat)
 conf_matrix
-
 # Calculate misclassification rate
 misclass_rate <- mean(y_hat != test_sig$income)
 misclass_rate
 ```
 After removing non-significant variables from the model, the misclassification rate was found to be 0.3473918, which is almost identical to the rate obtained from the original model. This suggests that the removed variables had little impact on predicting the response variable. The remaining variables are likely the most important in determining income levels, and should be further analyzed to understand their individual contributions to the model.
 
+## Classification Decision Tree Model
 
+We have chosen to utilize decision tree as our second model due to the large dimensions of our dataset, which it is capable of managing more effectively than logistic regression. Our objective is to classify individuals as 1 if their salary is greater than or equal to 50K, and 0 if it is below. 
+Decision tree models have several advantages, such as their simplicity and ease of interpretation, minimal data preparation requirements, and ability to handle both categorical and numerical data. However, they are prone to overfitting, sensitive to changes in the dataset, and feature reduction is often necessary when dealing with large datasets. Despite these limitations, decision trees remain a valuable tool in machine learning for classification tasks and are particularly useful in identifying individuals with a salary greater than or equal to 50K in the adult.csv dataset. Their accessibility and ability to handle complex relationships between features make them a popular choice in a variety of applications.
 
+We'll create the tree model $y = income ~ x1+x2+x3+...$, where the response variable is "income", and xi to xn are the variables used in prediction, and then plot it.
+```{r}
+# Load library
+library(tree)
+# Build the tree
+btree <- tree(income ~ ., data = train)
+# Plot tree
+plot(btree)
+text(btree)
+# Get summary of base tree
+base_tree <- summary(btree)
+base_tree # current terminal nodes: 5, variables used: relationship, capital_gain, education
+```
+Based on the current tree model, there are five terminal nodes, or final decision points, that are determined by the values of three predictor variables: relationship, capital_gain, and education. These variables have been identified as the most important in predicting income, and they are used to make the final classification decision at each terminal node. The resulting decision tree provides a clear and interpretable model for predicting income based on these key features.
+
+### Optmize by Pruning
+Optimizing decision trees through pruning and cross-validation is crucial to prevent overfitting and improve the model's generalization performance. Pruning simplifies the tree by removing unnecessary branches, while cross-validation evaluates the model's performance on different subsets of data. This helps to obtain a more accurate estimate of the model's true performance and prevent overfitting, resulting in a more accurate and interpretable model for predicting income based on key predictor variables.
+```{r}
+# Define a function to find the pruning parameter with the lowest deviance
+best_pruning <- function(cv_results) {
+  min_dev <- min(cv_results$dev)
+  min_dev_idx <- which(cv_results$dev == min_dev)
+  return(cv_results$size[min_dev_idx])
+}
+# Cross-validate and find the best pruning parameter
+class_cv <- cv.tree(btree, FUN = prune.misclass)
+best_param <- best_pruning(class_cv)
+# Plot the cross-validation results
+plot(class_cv$size, class_cv$dev, type = "b", xlab = "# of terminal nodes", ylab = "Deviance")
+# Prune the tree using the best parameter
+prunedTree <- prune.misclass(btree, best = best_param)
+# Print the summary of the pruned tree
+summary(prunedTree) # variables: relationship, capital_gain
+# Plot the pruned tree and label the nodes
+plot(prunedTree)
+text(prunedTree)
+```
+Although the misclassification error rate remains at 36.3% after pruning, the optimization process has still improved the decision tree model's generalization performance and interpretability. Pruning has simplified the model by removing unnecessary branches and nodes, resulting in a more interpretable model. Moreover, the model's accuracy may still be satisfactory for some applications, and further fine-tuning may lead to better results. Overall, the optimization process through pruning and cross-validation has been successful in creating a more accurate and interpretable decision tree model for predicting income based on key predictor variables.
+
+## Trials
+We'll run 10 trials and determine their average for both logistic regression and decision tree.
+```{r}
+evaluate_trials <- function() {
+  trials <- 10
+  # Evaluate misclassification rate over multiple trials
+  logreg_misclass_rates <- numeric(trials)
+  tree_misclass_rates <- numeric(trials)
+  for (i in 1:trials) {
+    set.seed(i)
+    # Split data into train and test sets
+    train_rows_x <- runif(nrow(base_adult)) < 0.8
+    train_x <<- base_adult[train_rows_x, ]
+    test_x <- base_adult[!train_rows_x, ]
+    # Subset train and test data using significant variables
+    train_sig <- train_x[, sig]
+    test_sig <- test_x[, sig]
+    # Refit logistic regression model using significant variables
+    lr_sig <- glm(income ~ ., train_sig, family = "binomial")
+    # Make predictions on test data
+    glm.pred <- predict(lr_sig, test_sig, type = "response")
+    y_hat <- ifelse(glm.pred > 0.5, 1, 0)
+    # Calculate misclassification rate for logistic regression
+    logreg_misclass_rate <- mean(y_hat != test_sig$income)
+    logreg_misclass_rates[i] = logreg_misclass_rate
+    # Build the tree
+    ba_tree <- tree(income ~ ., train_x)
+    # Optimize by pruning
+    class_cv <- cv.tree(ba_tree, FUN = prune.misclass)
+    best_param <- best_pruning(class_cv)
+    # Prune the tree using the best parameter
+    pruned_tree <- prune.misclass(ba_tree, best = best_param)
+    # Calculate misclassification rate for classification decision tree
+    tree_sum <- summary(pruned_tree)
+    tree_misclass_rate <- tree_sum$misclass[1]/tree_sum$misclass[2]
+    tree_misclass_rates[i] <- misclass_rate
+  }
+  # Return the average misclassification rates for both
+  return (list(mean(logreg_misclass_rates), mean(tree_misclass_rates)))
+}
+misclass_rate_vals = evaluate_trials()
+logreg_misclass_avg <- misclass_rate_vals[[1]]
+tree_misclass_avg <- misclass_rate_vals[[2]]
+logreg_misclass_avg
+tree_misclass_avg
+```
+The average misclassification rate for the logistic regression model, based on the average of 10 trials, is 35.05%. On the other hand, the decision tree model has an average misclassification rate of 34.74%, which is slightly better than the logistic regression model. These results suggest that the decision tree model may be a more suitable algorithm for predicting income based on the available predictor variables in the dataset.
+
+## Conclusion
+In conclusion, the decision tree model has shown to perform slightly better than the logistic regression model in predicting an individual's income exceeding $50,000 based on the adult dataset from the 1994 census. 
+The most significant variables for predicting an individual's income exceeding $50,000 are "education", "capital_gain", and "relationship". These variables were used in the tree's splitting criteria and appeared in multiple levels of the tree, indicating their importance in the model's decision-making process. Other variables, such as "age", "workclass", and "occupation", also appeared in the tree but were less significant in terms of splitting criteria and had less impact on the model's predictions.
+The difference in performance between the two models is relatively small, and further adjustments or evaluation methods may produce different results. Ultimately, both models provide viable options for predicting income based on the available predictor variables in the dataset, and selecting the most suitable model would depend on the specific application and desired level of accuracy.

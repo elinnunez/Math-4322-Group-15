@@ -147,8 +147,8 @@ evaluate_trials <- function() {
     summary(train_x)
     
     # Subset train and test data using significant variables
-    train_sig <- train_x[, c("age","workclass", "education","occupation","relationship","sex","capital_gain","capital_loss","hours_per_week","income")]
-    test_sig <- test_x[, c("age", "workclass", "education","occupation","relationship","sex","capital_gain","capital_loss","hours_per_week","income")]
+    train_sig <- train_x[, sig]
+    test_sig <- test_x[, sig]
     
     # Refit logistic regression model using significant variables
     lr_sig <- glm(income ~ ., train_sig, family = "binomial")
