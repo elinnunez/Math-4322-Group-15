@@ -237,3 +237,6 @@ The average misclassification rate for the logistic regression model, based on t
 In conclusion, the decision tree model has shown to perform slightly better than the logistic regression model in predicting an individual's income exceeding $50,000 based on the adult dataset from the 1994 census. 
 The most significant variables for predicting an individual's income exceeding $50,000 are "education", "capital_gain", and "relationship". These variables were used in the tree's splitting criteria and appeared in multiple levels of the tree, indicating their importance in the model's decision-making process. Other variables, such as "age", "workclass", and "occupation", also appeared in the tree but were less significant in terms of splitting criteria and had less impact on the model's predictions.
 The difference in performance between the two models is relatively small, and further adjustments or evaluation methods may produce different results. Ultimately, both models provide viable options for predicting income based on the available predictor variables in the dataset, and selecting the most suitable model would depend on the specific application and desired level of accuracy.
+
+## Bibliography
+- https://archive-beta.ics.uci.edu/dataset/2/adult
